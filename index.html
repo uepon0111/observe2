@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>タイムライン</title>
+    <style>
+        /* 全体のスタイル */
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 16px;
+        }
+
+        /* 最終更新日時 */
+        .last-updated {
+            text-align: center;
+            color: #999;
+            font-size: 0.8em;
+            margin-bottom: 20px;
+        }
+
+        /* 検索フォーム */
+        .search-box {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .search-box input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+        .date-range {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .date-range label {
+            font-size: 0.85em;
+            color: #666;
+            white-space: nowrap;
+        }
+        .date-range input[type="date"] {
+            flex: 1;
+            min-width: 120px;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .btn-clear {
+            padding: 8px 16px;
+            background: #e4e6eb;
+            color: #333;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        .btn-clear:hover { background: #d0d3d9; }
+
+        /* 件数表示 */
+        .result-count {
+            font-size: 0.82em;
+            color: #888;
+            text-align: right;
+            margin-bottom: 10px;
+            display: none;
+        }
+
+        /* 投稿カードのスタイル */
+        .post {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+            padding: 20px;
+            transition: transform 0.2s;
+        }
+        .post:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        /* 日付のスタイル */
+        .post-date {
+            font-size: 0.85em;
+            color: #65676b;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        /* 本文のスタイル */
+        .post-text {
+            font-size: 1rem;
+            line-height: 1.6;
+            white-space: pre-wrap; /* 改行をそのまま表示 */
+            word-wrap: break-word;
+            margin-bottom: 16px;
+        }
+
+        /* 画像ギャラリー - 均一サイズ・枚数別グリッド */
+        .post-images {
+            display: grid;
+            gap: 4px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .post-images.img-1    { grid-template-columns: 1fr; }
+        .post-images.img-2    { grid-template-columns: 1fr 1fr; }
+        .post-images.img-3    { grid-template-columns: 1fr 1fr 1fr; }
+        .post-images.img-many { grid-template-columns: 1fr 1fr; }
+
+        .post-images img {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+            border-radius: 4px;
+            cursor: pointer;
+            display: block;
+            transition: opacity 0.15s;
+        }
+        .post-images img:hover { opacity: 0.85; }
+
+        /* ライトボックス */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.93);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .lightbox.open { display: flex; }
+        .lightbox-inner {
+            max-width: 94vw;
+            max-height: 94vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .lightbox-inner img {
+            max-width: 94vw;
+            max-height: 94vh;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        .lightbox-close {
+            position: fixed;
+            top: 14px;
+            right: 18px;
+            color: #fff;
+            font-size: 2rem;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+            z-index: 10000;
+        }
+
+        /* 読み込み中の表示 */
+        .loading {
+            text-align: center;
+            color: #666;
+            font-weight: bold;
+        }
+        .no-results {
+            text-align: center;
+            color: #999;
+            padding: 40px 0;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ライトボックス -->
+<div id="lightbox" class="lightbox">
+    <span class="lightbox-close" id="lightbox-close">✕</span>
+    <div class="lightbox-inner">
+        <img id="lightbox-img" src="" alt="拡大画像">
+    </div>
+</div>
+
+<div class="container">
+    <h1>タイムライン</h1>
+    <div id="last-updated" class="last-updated"></div>
+
+    <!-- 検索フォーム -->
+    <div class="search-box">
+        <input type="text" id="search-text" placeholder="キーワード検索...">
+        <div class="date-range">
+            <label>開始</label>
+            <input type="date" id="date-from">
+            <label>終了</label>
+            <input type="date" id="date-to">
+            <button class="btn-clear" id="btn-clear">クリア</button>
+        </div>
+    </div>
+
+    <div id="result-count" class="result-count"></div>
+    <div id="timeline" class="loading">データを読み込んでいます...</div>
+</div>
+
+<script>
+    let allPosts = [];
+
+    // ---- ライトボックス ----
+    const lightbox    = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+
+    function openLightbox(src) {
+        lightboxImg.src = src;
+        lightbox.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+        lightbox.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    lightbox.addEventListener('click', closeLightbox);
+    document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+    lightboxImg.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+    // ---- 検索・フィルター ----
+    document.getElementById('search-text').addEventListener('input', applyFilter);
+    document.getElementById('date-from').addEventListener('change', applyFilter);
+    document.getElementById('date-to').addEventListener('change', applyFilter);
+    document.getElementById('btn-clear').addEventListener('click', () => {
+        document.getElementById('search-text').value = '';
+        document.getElementById('date-from').value = '';
+        document.getElementById('date-to').value = '';
+        applyFilter();
+    });
+
+    function applyFilter() {
+        const keyword  = document.getElementById('search-text').value.trim().toLowerCase();
+        const dateFrom = document.getElementById('date-from').value;
+        const dateTo   = document.getElementById('date-to').value;
+
+        const filtered = allPosts.filter(post => {
+            // キーワード検索
+            if (keyword && !(post.text || '').toLowerCase().includes(keyword)) return false;
+            // 日付範囲検索
+            const d = new Date(post.publishedAt);
+            if (dateFrom && d < new Date(dateFrom + 'T00:00:00')) return false;
+            if (dateTo   && d > new Date(dateTo   + 'T23:59:59')) return false;
+            return true;
+        });
+
+        renderPosts(filtered);
+    }
+
+    // ---- 描画 ----
+    function renderPosts(posts) {
+        const timelineDiv    = document.getElementById('timeline');
+        const resultCountDiv = document.getElementById('result-count');
+        timelineDiv.innerHTML = '';
+        timelineDiv.className = '';
+
+        if (posts.length === 0) {
+            timelineDiv.innerHTML = '<div class="no-results">条件に一致する投稿がありません。</div>';
+            resultCountDiv.style.display = 'none';
+            return;
+        }
+
+        if (posts.length !== allPosts.length) {
+            resultCountDiv.textContent = allPosts.length + '件中 ' + posts.length + '件を表示';
+            resultCountDiv.style.display = 'block';
+        } else {
+            resultCountDiv.style.display = 'none';
+        }
+
+        posts.forEach(post => {
+            const postEl = document.createElement('div');
+            postEl.className = 'post';
+
+            // 日付を見やすくフォーマット
+            const date = new Date(post.publishedAt);
+            const dateString = date.toLocaleString('ja-JP', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+            const dateEl = document.createElement('div');
+            dateEl.className = 'post-date';
+            dateEl.textContent = dateString;
+            postEl.appendChild(dateEl);
+
+            // 本文（textContent でXSS対策）
+            if (post.text) {
+                const textEl = document.createElement('div');
+                textEl.className = 'post-text';
+                textEl.textContent = post.text;
+                postEl.appendChild(textEl);
+            }
+
+            // 画像（均一サイズ・枚数別グリッド）
+            if (post.images && post.images.length > 0) {
+                const n = post.images.length;
+                const gridClass = n === 1 ? 'img-1'
+                                : n === 2 ? 'img-2'
+                                : n === 3 ? 'img-3'
+                                : 'img-many';
+                const imagesDiv = document.createElement('div');
+                imagesDiv.className = 'post-images ' + gridClass;
+
+                post.images.forEach(imgUrl => {
+                    const img = document.createElement('img');
+                    img.src     = imgUrl;
+                    img.alt     = '投稿画像';
+                    img.loading = 'lazy';
+                    // loading="lazy" で画像の遅延読み込みを有効化（表示高速化）
+                    img.addEventListener('click', () => openLightbox(imgUrl));
+                    imagesDiv.appendChild(img);
+                });
+                postEl.appendChild(imagesDiv);
+            }
+
+            timelineDiv.appendChild(postEl);
+        });
+    }
+
+    // ---- データ読み込み ----
+    async function loadTimeline() {
+        const timelineDiv = document.getElementById('timeline');
+        try {
+            // 自動生成されたJSONLファイルを読み込む
+            const response = await fetch('timeline_data.jsonl');
+            if (!response.ok) throw new Error('データが見つかりません');
+
+            // 最終更新日時を last_updated.json から取得
+            try {
+                const lu = await fetch('last_updated.json');
+                if (lu.ok) {
+                    const meta = await lu.json();
+                    const d = new Date(meta.updatedAt);
+                    document.getElementById('last-updated').textContent =
+                        '最終更新: ' + d.toLocaleString('ja-JP', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit'
+                        });
+                }
+            } catch (_) {}
+
+            const text = await response.text();
+
+            // 行ごとに分割してJSONオブジェクトに変換（空行は除外）
+            const lines = text.trim().split('\n');
+            allPosts = lines.filter(line => line).map(line => JSON.parse(line));
+
+            // 日付の新しい順（降順）に並び替え
+            allPosts.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+            // 初期表示
+            renderPosts(allPosts);
+
+        } catch (error) {
+            console.error(error);
+            timelineDiv.innerHTML = '<p style="text-align:center;">データの読み込みに失敗しました。</p>';
+        }
+    }
+
+    // スクリプトの実行
+    loadTimeline();
+</script>
+
+</body>
+</html>
